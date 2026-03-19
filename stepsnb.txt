@@ -1,0 +1,26 @@
+1. cd your-project-directory
+
+2. uv init
+
+3. uv add --dev ipykernel
+
+4. uv run ipython kernel install --user --name=your_env_name
+
+5.     uv run jupyter lab
+
+or 
+
+5. uvx --from notebook jupyter notebook
+
+or
+
+5. uvx --from jupyterlab jupyter lab
+
+
+
+
+
+[[286, 105, 328, 147], [2, 182, 40, 219]]
+ xmin, ymin, xmax, ymax -> format
+ 
+

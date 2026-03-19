@@ -1,0 +1,4 @@
+# ── frontend/requirements.txt ─────────────────────────────────────────────────
+gradio==4.31.0
+requests==2.31.0
+huggingface_hub==0.22.2

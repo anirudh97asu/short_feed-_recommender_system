@@ -1,0 +1,19 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+*.zip
+*.pdf
+*.png
+*.jpeg
+*.jpg
+*.ipynb
+*.csv
+*.npy
+datasets/tops_fashion.json

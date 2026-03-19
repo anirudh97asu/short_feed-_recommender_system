@@ -1,0 +1,75 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# docker-compose.yml  —  LOCAL DEVELOPMENT
+# ──────────────────────────────────────────────────────────────────────────────
+# Runs two services:
+#   postgres  — official Postgres 15 image, no setup required
+#   app       — our Dockerfile (FastAPI + Gradio via Supervisor)
+#
+# Usage:
+#   docker compose up --build        # first run
+#   docker compose up                # subsequent runs
+#   docker compose down -v           # stop and remove volumes
+#
+# Ports exposed to your local machine:
+#   localhost:7860  →  Gradio UI
+#   localhost:8000  →  FastAPI  +  /docs Swagger UI
+#   localhost:5432  →  Postgres (for inspecting DB with psql or TablePlus)
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  # Official image — no installation, no config, just works.
+  # Data persisted in a named Docker volume (survives container restarts).
+  postgres:
+    image: postgres:15-alpine           # alpine = smaller image (~75 MB)
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     fashion
+      POSTGRES_PASSWORD: fashion_secret
+      POSTGRES_DB:       fashion_rec
+    ports:
+      - "5432:5432"                     # expose for local DB inspection
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # Only mark healthy once Postgres is actually accepting connections
+      test: ["CMD-SHELL", "pg_isready -U fashion -d fashion_rec"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Application (FastAPI + Gradio) ───────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "7860:7860"                     # Gradio
+      - "8000:8000"                     # FastAPI + Swagger docs
+    environment:
+      # Points to the postgres SERVICE NAME — Docker resolves it to the
+      # container's internal IP automatically. No IP addresses needed.
+      DATABASE_URL: postgresql://fashion:fashion_secret@postgres:5432/fashion_rec
+
+      # Gradio calls FastAPI on localhost inside the same container
+      BACKEND_URL: http://localhost:8000
+
+      # Internal Postgres won't be initialised (external DB is used instead)
+      # entrypoint.sh detects the non-localhost DATABASE_URL and skips initdb
+    depends_on:
+      postgres:
+        condition: service_healthy      # wait for postgres healthcheck to pass
+    volumes:
+      # Mount ONLY the JSON file — not the whole directory.
+      # This means you can swap catalog versions by pointing to a different file:
+      #   v1: ./data/v1/products_with_embeddings.json
+      #   v2: ./data/v2/products_with_embeddings.json
+      # No image rebuild needed — just change the source path and restart.
+      - ./src/backend/data/products_with_embeddings.json:/app/backend/data/products_with_embeddings.json:ro
+
+volumes:
+  postgres_data:
+    # Named volume — persists across `docker-compose down` (but not `down -v`)
+    driver: local

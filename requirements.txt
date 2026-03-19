@@ -1,0 +1,25 @@
+# ── requirements.txt (combined: offline + backend + frontend) ─────────────────
+
+# shared
+requests==2.31.0
+numpy==1.26.4
+psycopg2-binary==2.9.9
+
+# offline / ML
+transformers==4.41.0
+torch==2.3.0
+Pillow==10.3.0
+pandas==2.2.2
+scikit-learn==1.4.2
+tqdm==4.66.4
+matplotlib==3.9.0
+
+# backend
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+pydantic==2.7.0
+python-dotenv==1.0.1
+
+# frontend
+gradio==4.31.0
+huggingface_hub==0.22.2

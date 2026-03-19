@@ -1,19 +1,4 @@
 #!/bin/bash
-# ──────────────────────────────────────────────────────────────────────────────
-# entrypoint.sh
-# ──────────────────────────────────────────────────────────────────────────────
-# Writes the correct supervisord config at runtime based on environment,
-# then hands off to supervisord.
-#
-#   LOCAL (docker-compose):
-#     DATABASE_URL points at external postgres service.
-#     → Write a config with FastAPI + Gradio ONLY (no internal postgres)
-#
-#   HF SPACES (single container):
-#     No external DATABASE_URL.
-#     → Initialise postgres, write config with all three processes.
-# ──────────────────────────────────────────────────────────────────────────────
-
 set -e
 
 PGDATA="/data/pgdata"
@@ -22,7 +7,6 @@ PGDB="fashion_rec"
 PGPASSWORD="${POSTGRES_PASSWORD:-fashion_secret}"
 RUNTIME_CONF="/tmp/supervisord-runtime.conf"
 
-# ── Shared supervisord header ──────────────────────────────────────────────────
 write_header() {
 cat > "$RUNTIME_CONF" << 'EOF'
 [supervisord]
@@ -42,7 +26,6 @@ supervisor.rpcinterface_factory=supervisor.rpcinterface:make_main_rpcinterface
 EOF
 }
 
-# ── Postgres program block ─────────────────────────────────────────────────────
 write_postgres() {
 cat >> "$RUNTIME_CONF" << 'EOF'
 
@@ -59,7 +42,6 @@ stderr_logfile=/tmp/postgres.log
 EOF
 }
 
-# ── FastAPI program block ──────────────────────────────────────────────────────
 write_fastapi() {
 cat >> "$RUNTIME_CONF" << EOF
 
@@ -77,7 +59,6 @@ stderr_logfile=/tmp/fastapi.log
 EOF
 }
 
-# ── Gradio program block ───────────────────────────────────────────────────────
 write_gradio() {
 cat >> "$RUNTIME_CONF" << EOF
 
@@ -95,34 +76,31 @@ stderr_logfile=/tmp/gradio.log
 EOF
 }
 
-# ── Detect environment and build config ───────────────────────────────────────
-
 if [ -n "$DATABASE_URL" ] && [[ "$DATABASE_URL" != *"localhost"* ]]; then
-    # ── docker-compose mode: external Postgres ────────────────────────────────
     echo "[entrypoint] External DATABASE_URL detected."
     echo "[entrypoint] Writing config: FastAPI + Gradio only (no internal Postgres)."
-
     write_header
     write_fastapi
     write_gradio
-
 else
-    # ── HF Spaces mode: internal Postgres ────────────────────────────────────
     echo "[entrypoint] No external DATABASE_URL — setting up internal Postgres."
 
     if [ ! -f "$PGDATA/PG_VERSION" ]; then
         echo "[entrypoint] First boot — initialising Postgres at $PGDATA ..."
 
-        # Write password to a temp file so initdb can use it (required for md5 auth)
-        echo "$PGPASSWORD" > /tmp/pgpass.txt
+        # HF Spaces mounts /data at runtime as root — must fix ownership here
+        mkdir -p "$PGDATA"
+        chown -R postgres:postgres "$PGDATA"
+        chmod 700 "$PGDATA"
 
+        # --pwfile required when using --auth=md5
+        echo "$PGPASSWORD" > /tmp/pgpass.txt
         gosu postgres /usr/lib/postgresql/*/bin/initdb \
             --pgdata="$PGDATA" \
             --auth=md5 \
             --username=postgres \
             --pwfile=/tmp/pgpass.txt \
             --encoding=UTF8
-
         rm -f /tmp/pgpass.txt
 
         gosu postgres /usr/lib/postgresql/*/bin/pg_ctl \
@@ -143,9 +121,7 @@ EOSQL
     fi
 
     export DATABASE_URL="postgresql://${PGUSER}:${PGPASSWORD}@localhost:5432/${PGDB}"
-
     echo "[entrypoint] Writing config: Postgres + FastAPI + Gradio."
-
     write_header
     write_postgres
     write_fastapi

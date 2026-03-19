@@ -113,16 +113,22 @@ else
     if [ ! -f "$PGDATA/PG_VERSION" ]; then
         echo "[entrypoint] First boot — initialising Postgres at $PGDATA ..."
 
+        # Write password to a temp file so initdb can use it (required for md5 auth)
+        echo "$PGPASSWORD" > /tmp/pgpass.txt
+
         gosu postgres /usr/lib/postgresql/*/bin/initdb \
             --pgdata="$PGDATA" \
             --auth=md5 \
             --username=postgres \
+            --pwfile=/tmp/pgpass.txt \
             --encoding=UTF8
+
+        rm -f /tmp/pgpass.txt
 
         gosu postgres /usr/lib/postgresql/*/bin/pg_ctl \
             -D "$PGDATA" -o "-c listen_addresses=''" -w start
 
-        gosu postgres psql --username=postgres <<-EOSQL
+        PGPASSWORD="$PGPASSWORD" gosu postgres psql --username=postgres <<-EOSQL
             CREATE USER ${PGUSER} WITH PASSWORD '${PGPASSWORD}';
             CREATE DATABASE ${PGDB} OWNER ${PGUSER};
             GRANT ALL PRIVILEGES ON DATABASE ${PGDB} TO ${PGUSER};
